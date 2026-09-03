@@ -24,7 +24,7 @@ on:
         type: string
         default: '500000'
       log_path:
-        description: 'Full trade log path. Leave blank for the default (<your-repo>/data/<instance>-trades.log under the runner workspace).'
+        description: 'Full trade log path. Leave blank for the default (ceapmann/data/<instance>-trades.log under the runner workspace).'
         type: string
         default: ''
   schedule:
@@ -172,7 +172,7 @@ jobs:
           fi
           ARGS="$ARGS div --pct 50"   # adjust 25 to whatever % you want auto-sent to the vault
           echo "=== Running tva with args: $ARGS ==="
-          cd <your-repo>
+          cd ceapmann
           $DAPP $ARGS
 
       - name: Show new trade log lines (safety net if the commit step doesn't run)
@@ -182,7 +182,7 @@ jobs:
         # on the runner's disk, which is gone once the job ends.
         if: always()
         run: |
-          cd <your-repo>
+          cd ceapmann
           NEW_LINES=$(git diff --unified=0 -- "$TVA_LOG_PATH" | grep -E '^\+[^+]' || true)
           if [ -n "$NEW_LINES" ]; then
             echo "=== New trade log line(s) this run (not yet committed) ==="
@@ -195,7 +195,7 @@ jobs:
         if: always()
         run: rm -f "$RUNNER_TEMP/keystore.json"
 
-      - name: Commit trade log to <your-repo>
+      - name: Commit trade log to ceapmann
         # Explicit success() so a failure earlier in the job can never be
         # masked by a future edit to this condition -- only commit on a
         # clean, non-dry-run run.
@@ -204,7 +204,7 @@ jobs:
           COMMIT_NAME:  ${{ vars.USER0_NAME }}
           COMMIT_EMAIL: ${{ secrets.USER0_EMAIL }}
         run: |
-          cd <your-repo>
+          cd ceapmann
           git config --local user.name "$COMMIT_NAME"
           git config --local user.email "$COMMIT_EMAIL"
           git add "$TVA_LOG_PATH"
