@@ -195,7 +195,7 @@ jobs:
         if: always()
         run: rm -f "$RUNNER_TEMP/keystore.json"
 
-      - name: Commit trade log to <your-repo>
+      - name: Commit trade log to ceapmann
         # Explicit success() so a failure earlier in the job can never be
         # masked by a future edit to this condition -- only commit on a
         # clean, non-dry-run run.
@@ -204,7 +204,7 @@ jobs:
           COMMIT_NAME:  ${{ vars.USER0_NAME }}
           COMMIT_EMAIL: ${{ secrets.USER0_EMAIL }}
         run: |
-          cd <your-repo>
+          cd ceapmann
           git config --local user.name "$COMMIT_NAME"
           git config --local user.email "$COMMIT_EMAIL"
           git add "$TVA_LOG_PATH"
