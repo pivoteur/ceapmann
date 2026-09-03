@@ -1,0 +1,120 @@
+name: maegen
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (no capital moved around/ touched)?'
+        type: boolean
+        default: false
+      debug:
+        description: 'Debug mode (show what is going on behind the scenes)?'
+        type: boolean
+        default: false
+  schedule:
+    - cron: "0 * * * *"
+
+env:
+  DAPP: maegen
+
+permissions:
+  contents: write
+
+jobs:
+  run-maegen:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+           path: ceapmann
+
+      - name: Checkout trading
+        uses: actions/checkout@v4
+        with:
+          repository: pivoteur/trading
+          path: trading
+
+      - name: Checkout protocol
+        uses: actions/checkout@v4
+        with:
+          repository: pivoteur/protocol
+          path: protocol
+          ref: main
+
+      - name: Load Shared Environment Variables
+        uses: doughepi/yaml-env-action@v1.0.0
+        with:
+          files: trading/.github/config/trading-env.yml
+
+      - name: Establish app path
+        run: echo "DAPP_DIR=$DAPPS_DIR/$DAPP" >> $GITHUB_ENV
+
+      - name: Establish git path
+        run: echo "GIT_DAPP_DIR=$GITHUB_PATH/$DAPP_DIR" >> $GITHUB_ENV
+
+      - name: Cache maegen binary
+        id: binary-cache
+        uses: actions/cache@v4
+        with:
+          path: trading/dapps/maegen/target/release/maegen
+          key: >-
+            maegen-binary-
+            ${{ hashFiles(format('{0}/quiz01/c_maegen/mod.rs', env.QUIZZES_SRC)) }}-
+            ${{ hashFiles('trading/libs/src/auto_trading.rs') }}-
+            ${{ hashFiles(format('{0}/Cargo.toml', env.DAPP_DIR)) }}-
+            ${{ hashFiles(format('{0}/Cargo.lock', env.DAPP_DIR)) }}
+
+      - name: Install Rust toolchain
+        if: steps.binary-cache.outputs.cache-hit != 'true'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Checkout crypto-n-rust
+        if: steps.binary-cache.outputs.cache-hit != 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: logicalgraphs/crypto-n-rust
+          path: crypto-n-rust
+
+      - name: Show input parameters
+        run: |
+          echo "=== Running maegen with manual inputs ==="
+          echo "dry_run: ${{ inputs.dry_run }}"
+          echo "debug: ${{ inputs.debug }}"
+
+      - name: Build maegen
+        if: steps.binary-cache.outputs.cache-hit != 'true'
+        run: |
+          cargo build --manifest-path $DAPP_DIR/Cargo.toml --bin $DAPP --release
+
+      - name: Add maegen to PATH
+        run: echo "$DAPP_DIR/$EXE_SUBDIR" >> $GITHUB_PATH
+
+      - name: Write keystore file from secret
+        env:
+          VAULT_KEYSTORE_JSON: ${{ secrets.VAULT_KEYSTORE_JSON }}
+        run: |
+          echo "$VAULT_KEYSTORE_JSON" > "$RUNNER_TEMP/vault-keystore.json"
+          echo "VAULT_KEYSTORE_PATH=$RUNNER_TEMP/vault-keystore.json" >> $GITHUB_ENV
+
+      - name: Run maegen
+        env:
+          VAULT_ADDRESS:       ${{ secrets.VAULT_ADDRESS }}
+          KEYSTORE_PASSWORD:   ${{ secrets.VAULT_KEYSTORE_PASSWORD }}
+        run: |
+          ARGS=""
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+          if [ "${{ github.event.inputs.debug }}" = "true" ]; then
+            ARGS="$ARGS --debug"
+          fi
+          echo "=== Running maegen on avalanche with BTC --wallet-address **** --keystore-path **** $ARGS ==="
+          $DAPP avalanche BTC --wallet-address "$VAULT_ADDRESS" --keystore-path "$VAULT_KEYSTORE_PATH" $ARGS
+
+      - name: Delete keystore file
+        if: always()
+        run: rm -f "$RUNNER_TEMP/vault-keystore.json"
