@@ -1,0 +1,2 @@
+# ceapmann
+Testing auto-trading
